@@ -50,4 +50,8 @@ export declare const createDesignSystem: (sandbox: Sandbox) => (container: Eleme
         label: string;
         onclick?: ((ev: MouseEvent) => void) | undefined;
     }) => HTMLInputElement;
+    /** Used to re-create a UI like the tab bar at the top of the plugins section */
+    createTabBar: () => HTMLDivElement;
+    /** Used with createTabBar to add buttons */
+    createTabButton: (text: string) => HTMLButtonElement;
 };

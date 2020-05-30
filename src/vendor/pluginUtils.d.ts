@@ -35,6 +35,8 @@ export declare const createUtils: (sb: any, react: typeof React) => {
             label: string;
             onclick?: ((ev: MouseEvent) => void) | undefined;
         }) => HTMLInputElement;
+        createTabBar: () => HTMLDivElement;
+        createTabButton: (text: string) => HTMLButtonElement;
     };
     /** Flashes a HTML Element */
     flashHTMLElement: (element: HTMLElement) => void;

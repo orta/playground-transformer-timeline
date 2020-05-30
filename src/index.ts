@@ -1,45 +1,176 @@
-import type { PlaygroundPlugin, PluginUtils } from "./vendor/playground"
+import type { PlaygroundPlugin, PluginUtils } from "./vendor/playground";
+import type { TypeChecker, CompilerHost, CompilerOptions, SourceFile } from "typescript";
 
 const makePlugin = (utils: PluginUtils) => {
+
   const customPlugin: PlaygroundPlugin = {
-    id: "example",
-    displayName: "Dev Example",
+    id: "transforms",
+    displayName: "Transformers",
     didMount: (sandbox, container) => {
-      console.log("Showing new plugin")
+      const ds = utils.createDesignSystem(container);
+      ds.p("This plugin will show each step of the TypeScript transformer pipeline, right now the process has no way to know the name of a transformer because the functions are minified.");
 
-      // Create a design system object to handle
-      // making DOM elements which fit the playground (and handle mobile/light/dark etc)
-      const ds = utils.createDesignSystem(container)
+      const startButton = document.createElement("input");
+      startButton.type = "button";
+      startButton.value = "Generate transform stages";
+      container.appendChild(startButton);
 
-      ds.title("Example Plugin")
-      ds.p("This plugin has a button which changes the text in the editor, click below to test it")
+      const display = document.createElement("div")
+      container.appendChild(display)
 
-      const startButton = document.createElement("input")
-      startButton.type = "button"
-      startButton.value = "Change the code in the editor"
-      container.appendChild(startButton)
+      startButton.onclick = async () => {
+        const ts = sandbox.ts;
+        const program = await sandbox.createTSProgram();
 
-      startButton.onclick = () => {
-        sandbox.setText("// You clicked the button!")
-      }
+        // @ts-expect-error - private API
+        let checker: TypeChecker = program.getDiagnosticsProducingTypeChecker();
+        let sourceFile = program.getSourceFile(sandbox.filepath);
+        let options = sandbox.getCompilerOptions();
+
+        // @ts-expect-error - private API
+        const emitResolver = checker.getEmitResolver(sourceFile, neverCancel);
+
+        // This gets filled out as the emitter runs below
+        const allOutputs: { index: number, text: string, filename: string }[] = [];
+
+        // @ts-expect-error Private API
+        const allTransformers = ts.getTransformers(options, [], false);
+        console.log(allTransformers.scriptTransformers)
+        
+        // Loop through the script transformers going from [1], [1, 2], [1, 2, 3] ... 
+        allTransformers.scriptTransformers.forEach((_t, index) => {
+          const transformersToThis = [...allTransformers.scriptTransformers].splice(0, index + 1);
+
+          const writeFile = (name, text) => {
+            allOutputs.push({
+              filename: name,
+              index,
+              text,
+            });
+          }
+
+          const emitHost = createEmitHost(options, sourceFile, ts, writeFile);
+          const incrementalTransformers = {
+            scriptTransformers: transformersToThis,
+            declarationTransformers: allTransformers.declarationTransformers
+          }
+
+          console.log(transformersToThis.length)
+
+          // @ts-expect-error Private API
+          const emitResult = ts.emitFiles(
+            emitResolver,
+            emitHost,
+            undefined, // target source file (doesn't seem to work when I set it)
+            incrementalTransformers, // an incremental subset of allTransformers
+            false, // only DTS
+            false, // only build info
+            false // force DTS
+          );
+        });
+
+
+
+        const ds = utils.createDesignSystem(display)
+        ds.clear()
+
+        const allFiles = [] as string[]
+        allOutputs.forEach(f => {
+          if(!allFiles.includes(f.filename)) allFiles.push(f.filename)
+        })
+        
+        const filetabs = ds.createTabBar()
+        filetabs.id = "transform-files"
+        const stagetabs = ds.createTabBar()
+        stagetabs.id = "transform-stages"
+        const code = ds.code("")
+
+        allFiles.forEach((filename, i) => {
+          const button = ds.createTabButton(filename.substr(1))
+          
+          button.onclick = () => {
+            document.querySelectorAll("#transform-files > button").forEach(b => b.classList.remove("active"))
+            button.classList.add("active")
+
+            // We're gonna replace all the tabs for stages
+            while (stagetabs.firstChild) {
+              stagetabs.removeChild(stagetabs.firstChild)
+            }
+            
+            // Get all the relevant stages, make tabs for them
+            const currentStages = allOutputs.filter(f => f.filename === filename)
+            currentStages.forEach((s, j) => {
+
+              const stageButton = ds.createTabButton(s.index.toString())
+              // When you hover over these buttons then show the code for that stage
+              stageButton.onmouseover = () => {
+                document.querySelectorAll("#transform-stages > button").forEach(b => b.classList.remove("active"))
+                stageButton.classList.add("active")
+
+                const lang = filename.endsWith("js") ? "javascript" : "typescript"
+                sandbox.monaco.editor.colorize(s.text, lang, {}).then(coloredJS => {
+                  code.innerHTML = coloredJS
+                })
+              }
+
+              stagetabs.appendChild(stageButton)
+              if (j === 0) stageButton.onmouseover({} as any)
+            })
+          }
+
+          filetabs.appendChild(button)
+          if(i === 0) button.click()
+        });
+      };
     },
+  };
 
-    // This is called occasionally as text changes in monaco,
-    // it does not directly map 1 keyup to once run of the function
-    // because it is intentionally called at most once every 0.3 seconds
-    // and then will always run at the end.
-    modelChangedDebounce: async (_sandbox, _model) => {
-      // Do some work with the new text
+  return customPlugin;
+};
+
+// Some filler stuff we need to get stuff working with the private APIs
+
+const createEmitHost = (
+  options: CompilerOptions,
+  sourceFile: SourceFile,
+  ts: typeof import("typescript"),
+  writeFile: any
+) => {
+  const emitHost = {
+    getPrependNodes: () => [],
+    getCanonicalFileName: (i) => i,
+    getCommonSourceDirectory: () => ".",
+    getCompilerOptions: () => options,
+    getCurrentDirectory: () => "",
+    getNewLine: () => "\n",
+    getSourceFile: () => sourceFile,
+    getSourceFileByPath: () => sourceFile,
+    getSourceFiles: () => [sourceFile],
+    getLibFileFromReference: () => {
+      throw new Error("not implemented");
     },
+    isSourceFileFromExternalLibrary: () => false,
+    getResolvedProjectReferenceToRedirect: () => undefined,
+    getProjectReferenceRedirect: () => undefined,
+    isSourceOfProjectReferenceRedirect: () => false,
+    writeFile: writeFile,
+    isEmitBlocked: () => false,
+    readFile: (f) =>  sourceFile.text,
+    fileExists: (f) =>  true,
+    useCaseSensitiveFileNames: () => true,
+    getProgramBuildInfo: () => undefined,
+    getSourceFileFromReference: () => undefined,
+    // @ts-ignore private API, might not even be used
+    redirectTargetsMap: ts.createMultiMap(),
+  };
+  return emitHost;
+};
 
-    // Gives you a chance to remove anything set up,
-    // the container itself if wiped of children after this.
-    didUnmount: () => {
-      console.log("De-focusing plugin")
-    },
-  }
+const neverCancel = {
+  isCancellationRequested() {
+    return false;
+  },
+  throwIfCancellationRequested() {},
+};
 
-  return customPlugin
-}
-
-export default makePlugin
+export default makePlugin;
