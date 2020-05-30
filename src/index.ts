@@ -31,7 +31,8 @@ const makePlugin = (utils: PluginUtils) => {
         const emitResolver = checker.getEmitResolver(sourceFile, neverCancel);
 
         // This gets filled out as the emitter runs below
-        const allOutputs: { index: number, text: string, filename: string }[] = [];
+        const dtsOutputs: { index: number, text: string, filename: string }[] = [];
+        const jsOutputs: { index: number, text: string, filename: string }[] = [];
 
         // @ts-expect-error Private API
         const allTransformers = ts.getTransformers(options, [], false);
@@ -42,11 +43,13 @@ const makePlugin = (utils: PluginUtils) => {
           const transformersToThis = [...allTransformers.scriptTransformers].splice(0, index + 1);
 
           const writeFile = (name, text) => {
-            allOutputs.push({
-              filename: name,
-              index,
-              text,
-            });
+            if(name.endsWith(".js")) {
+              jsOutputs.push({
+                filename: name,
+                index,
+                text,
+              });
+            }
           }
 
           const emitHost = createEmitHost(options, sourceFile, ts, writeFile);
@@ -55,10 +58,8 @@ const makePlugin = (utils: PluginUtils) => {
             declarationTransformers: allTransformers.declarationTransformers
           }
 
-          console.log(transformersToThis.length)
-
           // @ts-expect-error Private API
-          const emitResult = ts.emitFiles(
+          ts.emitFiles(
             emitResolver,
             emitHost,
             undefined, // target source file (doesn't seem to work when I set it)
@@ -69,24 +70,51 @@ const makePlugin = (utils: PluginUtils) => {
           );
         });
 
+         
+        // Loop through the declaration transformers going from [1], [1, 2], [1, 2, 3] ... 
+        allTransformers.declarationTransformers.forEach((_t, index) => {
+          const transformersToThis = [...allTransformers.declarationTransformers].splice(0, index + 1);
 
+          const writeFile = (name, text) => {
+            if(name.endsWith(".d.ts")) {
+              dtsOutputs.push({
+                filename: name,
+                index,
+                text,
+              });
+            }
+          }
+
+          const emitHost = createEmitHost(options, sourceFile, ts, writeFile);
+          const incrementalTransformers = {
+            scriptTransformers: allTransformers.scriptTransformers,
+            declarationTransformers: transformersToThis
+          }
+
+          // @ts-expect-error Private API
+          ts.emitFiles(
+            emitResolver,
+            emitHost,
+            undefined, // target source file (doesn't seem to work when I set it)
+            incrementalTransformers, // an incremental subset of allTransformers
+            false, // only DTS
+            false, // only build info
+            false // force DTS
+          );
+        });
 
         const ds = utils.createDesignSystem(display)
         ds.clear()
-
-        const allFiles = [] as string[]
-        allOutputs.forEach(f => {
-          if(!allFiles.includes(f.filename)) allFiles.push(f.filename)
-        })
         
         const filetabs = ds.createTabBar()
         filetabs.id = "transform-files"
         const stagetabs = ds.createTabBar()
         stagetabs.id = "transform-stages"
-        const code = ds.code("")
+        const code = ds.code("");
 
-        allFiles.forEach((filename, i) => {
-          const button = ds.createTabButton(filename.substr(1))
+        ["JavaScript", "DTS"].forEach((name, i) => {
+          const button = ds.createTabButton(name)
+          const currentStages = i === 0 ? jsOutputs : dtsOutputs
           
           button.onclick = () => {
             document.querySelectorAll("#transform-files > button").forEach(b => b.classList.remove("active"))
@@ -98,16 +126,15 @@ const makePlugin = (utils: PluginUtils) => {
             }
             
             // Get all the relevant stages, make tabs for them
-            const currentStages = allOutputs.filter(f => f.filename === filename)
             currentStages.forEach((s, j) => {
 
-              const stageButton = ds.createTabButton(s.index.toString())
+              const stageButton = ds.createTabButton((s.index + 1).toString())
               // When you hover over these buttons then show the code for that stage
               stageButton.onmouseover = () => {
                 document.querySelectorAll("#transform-stages > button").forEach(b => b.classList.remove("active"))
                 stageButton.classList.add("active")
 
-                const lang = filename.endsWith("js") ? "javascript" : "typescript"
+                const lang = s.filename.endsWith("js") ? "javascript" : "typescript"
                 sandbox.monaco.editor.colorize(s.text, lang, {}).then(coloredJS => {
                   code.innerHTML = coloredJS
                 })
