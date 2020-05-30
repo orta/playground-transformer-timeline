@@ -1,17 +1,19 @@
-## TypeScript Playground Plugin
+## TypeScript Transformers Playground Plugin
 
-My new plugin for the TypeScript playground.
+Lets you see each stage of the transform process for a TypeScript JS + DTS emit as a timeline.
+
+<p align="center"><img src="./screenshots/v1.png" /></p>
 
 ## Running this plugin
 
-- [Click this link](https://typescriptlang.org/play?install-plugin=[name]) to install
+- [Click this link](https://typescriptlang.org/play?install-plugin=playground-transformer-timeline) to install
 
 or
 
 - Open up the TypeScript Playground
-- Go the "Options" in the sidebar
+- Go the "Plugins" in the sidebar
 - Look for "Plugins from npm"
-- Add "[name]"
+- Add "playground-transformer-timeline"
 - Reload the browser
 
 Then it will show up as a tab in the sidebar.

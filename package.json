@@ -1,11 +1,15 @@
 {
   "name": "playground-transformer-timeline",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "main": "dist/index.js",
   "license": "MIT",
   "keywords": [
     "playground-plugin"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/orta/playground-transformer-timeline"
+  },
   "scripts": {
     "build": "rollup -c rollup.config.js;",
     "compile": "tsc",
