@@ -141,8 +141,11 @@ const makePlugin = (utils: PluginUtils) => {
             
             // Get all the relevant stages, make tabs for them
             currentStages.forEach((s, j) => {
+              const isActive = (j === 0 || currentStages[j-1].text !== s.text)
 
               const stageButton = ds.createTabButton(names[s.index])
+              if (!isActive) stageButton.disabled = true
+
               // When you hover over these buttons then show the code for that stage
               stageButton.onmouseover = () => {
                 document.querySelectorAll("#transform-stages > button").forEach(b => b.classList.remove("active"))

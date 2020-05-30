@@ -2,7 +2,7 @@
 
 Lets you see each stage of the transform process for a TypeScript JS + DTS emit as a timeline.
 
-<p align="center"><img src="./screenshots/v1.png" /></p>
+<p align="center"><img src="./screenshots/v1-1.png" /></p>
 
 ## Running this plugin
 
