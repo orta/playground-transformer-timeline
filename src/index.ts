@@ -1,5 +1,5 @@
 import type { PlaygroundPlugin, PluginUtils } from "./vendor/playground";
-import type { TypeChecker, CompilerHost, CompilerOptions, SourceFile } from "typescript";
+import type { TypeChecker,  CompilerOptions, SourceFile, ModuleKind } from "typescript";
 
 const makePlugin = (utils: PluginUtils) => {
 
@@ -8,7 +8,16 @@ const makePlugin = (utils: PluginUtils) => {
     displayName: "Transformers",
     didMount: (sandbox, container) => {
       const ds = utils.createDesignSystem(container);
-      ds.p("This plugin will show each step of the TypeScript transformer pipeline, right now the process has no way to know the name of a transformer because the functions are minified.");
+      const ts = sandbox.ts;
+      
+      const intro = ds.p("");
+
+      const updateIntro = () => {
+        let options = sandbox.getCompilerOptions();
+        const targeting = `Targeting ${ts.ScriptTarget[options.target]} with module ${ts.ModuleKind[options.module]}.`
+        intro.textContent = `This plugin visualizes each step of the TypeScript transformer pipeline based on your compiler settings. ${targeting}`
+      }
+      updateIntro()
 
       const startButton = document.createElement("input");
       startButton.type = "button";
@@ -19,7 +28,8 @@ const makePlugin = (utils: PluginUtils) => {
       container.appendChild(display)
 
       startButton.onclick = async () => {
-        const ts = sandbox.ts;
+        updateIntro()
+
         const program = await sandbox.createTSProgram();
 
         // @ts-expect-error - private API
@@ -112,9 +122,13 @@ const makePlugin = (utils: PluginUtils) => {
         stagetabs.id = "transform-stages"
         const code = ds.code("");
 
+        const jsNames = getScriptTransformerNamess(options, ts)
+        const dtsNames = ["DTS"];
+
         ["JavaScript", "DTS"].forEach((name, i) => {
           const button = ds.createTabButton(name)
           const currentStages = i === 0 ? jsOutputs : dtsOutputs
+          const names = i === 0 ? jsNames : dtsNames
           
           button.onclick = () => {
             document.querySelectorAll("#transform-files > button").forEach(b => b.classList.remove("active"))
@@ -128,7 +142,7 @@ const makePlugin = (utils: PluginUtils) => {
             // Get all the relevant stages, make tabs for them
             currentStages.forEach((s, j) => {
 
-              const stageButton = ds.createTabButton((s.index + 1).toString())
+              const stageButton = ds.createTabButton(names[s.index])
               // When you hover over these buttons then show the code for that stage
               stageButton.onmouseover = () => {
                 document.querySelectorAll("#transform-stages > button").forEach(b => b.classList.remove("active"))
@@ -199,5 +213,76 @@ const neverCancel = {
   },
   throwIfCancellationRequested() {},
 };
+
+// Direct rip of https://github.com/microsoft/TypeScript/blob/fb4d53079b050abf6bfb4582ee0624ec484f7876/src/compiler/transformer.ts#L37
+// Switching the transformers with strings for the names
+function getScriptTransformerNamess(compilerOptions: CompilerOptions, ts: typeof import("typescript")): string[] {
+  const jsx = compilerOptions.jsx;
+  // @ts-expect-error - private api
+  const languageVersion = ts.getEmitScriptTarget(compilerOptions);
+  // @ts-expect-error - private api
+  const moduleKind = ts.getEmitModuleKind(compilerOptions);
+  const transformers: string[] = [];
+  
+  transformers.push("TS");
+  transformers.push("Class Fields");
+
+  if (jsx === ts.JsxEmit.React) {
+      transformers.push("JSX");
+  }
+
+  if (languageVersion < ts.ScriptTarget.ESNext) {
+      transformers.push("ESNext");
+  }
+
+  if (languageVersion < ts.ScriptTarget.ES2020) {
+      transformers.push("ES2020");
+  }
+
+  if (languageVersion < ts.ScriptTarget.ES2019) {
+      transformers.push("ES2019");
+  }
+
+  if (languageVersion < ts.ScriptTarget.ES2018) {
+      transformers.push("ES2018");
+  }
+
+  if (languageVersion < ts.ScriptTarget.ES2017) {
+      transformers.push("ES2017");
+  }
+
+  if (languageVersion < ts.ScriptTarget.ES2016) {
+      transformers.push("ES2016");
+  }
+
+  if (languageVersion < ts.ScriptTarget.ES2015) {
+      transformers.push("ES2015");
+      transformers.push("Generators");
+  }
+
+  transformers.push(getModuleTransformer(moduleKind, ts));
+
+  // The ES5 transformer is last so that it can substitute expressions like `exports.default`
+  // for ES3.
+  if (languageVersion < ts.ScriptTarget.ES5) {
+      transformers.push("ES5");
+  }
+
+  return transformers;
+}
+
+function getModuleTransformer(moduleKind: ModuleKind,ts: typeof import("typescript")): string {
+  switch (moduleKind) {
+      case ts.ModuleKind.ESNext:
+      case ts.ModuleKind.ES2020:
+      case ts.ModuleKind.ES2015:
+          return "ES Module";
+      case ts.ModuleKind.System:
+          return "System";
+      default:
+          return "CommonJs/AMD/UMD";
+  }
+}
+
 
 export default makePlugin;
