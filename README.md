@@ -6,7 +6,7 @@ Lets you see each stage of the transform process for a TypeScript JS + DTS emit 
 
 ## Running this plugin
 
-- [Click this link](https://www.typescriptlang.org/play?install-plugin=playground-transformer-timeline) to install
+- [Click this link](https://www.staging-typescript.org/play?install-plugin=playground-transformer-timeline) to install
 
 or
 
