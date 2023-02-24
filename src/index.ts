@@ -32,8 +32,7 @@ const makePlugin = (utils: PluginUtils) => {
 
         const program = await sandbox.createTSProgram();
 
-        // @ts-expect-error - private API
-        let checker: TypeChecker = program.getDiagnosticsProducingTypeChecker();
+        let checker: TypeChecker = program.getTypeChecker();
         let sourceFile = program.getSourceFile(sandbox.filepath);
         let options = sandbox.getCompilerOptions();
 
