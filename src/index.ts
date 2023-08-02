@@ -121,7 +121,7 @@ const makePlugin = (utils: PluginUtils) => {
         stagetabs.id = "transform-stages"
         const code = ds.code("");
 
-        const jsNames = getScriptTransformerNamess(options, ts)
+        const jsNames = getScriptTransformerNames(options, ts)
         const dtsNames = ["DTS"];
 
         ["JavaScript", "DTS"].forEach((name, i) => {
@@ -218,7 +218,7 @@ const neverCancel = {
 
 // Direct rip of https://github.com/microsoft/TypeScript/blob/fb4d53079b050abf6bfb4582ee0624ec484f7876/src/compiler/transformer.ts#L37
 // Switching the transformers with strings for the names
-function getScriptTransformerNamess(compilerOptions: CompilerOptions, ts: typeof import("typescript")): string[] {
+function getScriptTransformerNames(compilerOptions: CompilerOptions, ts: typeof import("typescript")): string[] {
   const jsx = compilerOptions.jsx;
   // @ts-expect-error - private api
   const languageVersion = ts.getEmitScriptTarget(compilerOptions);
